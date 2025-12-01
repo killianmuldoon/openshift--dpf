@@ -34,11 +34,11 @@ echo "Waiting for OVN-K interface (with link-local address) to get an IP address
 
 while true; do
     # Find all interfaces with link-local addresses using JSON output
-    ovnk_ifaces=$(ip -j addr show | jq -r '.[] | select(.addr_info[]? | .local | test("'"$LINK_LOCAL_PATTERN"'")) | .ifname' | sort -u)
+    ovnk_ifaces=$(ip -j addr show | jq --arg pattern "$LINK_LOCAL_PATTERN" -r '.[] | select(.addr_info[]? | .local | test($pattern)) | .ifname' | sort -u)
     
     for ovnk_iface in $ovnk_ifaces; do
         # Get non-link-local IP address for the detected IP version
-        ovnk_ip=$(ip $IP_FLAG -j addr show "$ovnk_iface" | jq -r '.[] | .addr_info[]? | select(.local | test("'"$LINK_LOCAL_PATTERN"'") | not) | .local' | head -n1)
+        ovnk_ip=$(ip $IP_FLAG -j addr show "$ovnk_iface" | jq --arg pattern "$LINK_LOCAL_PATTERN" -r '.[] | .addr_info[]? | select(.local | test($pattern) | not) | .local' | head -n1)
         
         if [ -n "$ovnk_ip" ]; then
             echo "Found OVN-K interface: $ovnk_iface with IPv${IP_VERSION}: $ovnk_ip"
