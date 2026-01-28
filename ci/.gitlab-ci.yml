@@ -1,0 +1,147 @@
+# GitLab CI/CD Configuration for OpenShift DPF
+# End-to-end test pipeline that performs a full deployment cycle.
+#
+# This pipeline:
+# 1. Uses ci/env.template to generate .env file
+# 2. Syncs repo to remote lab machine
+# 3. Runs deployment via SSH
+#
+# =============================================================================
+# Required CI/CD Variables (set in GitLab UI: Settings > CI/CD > Variables)
+# =============================================================================
+#
+# Remote Host (for SSH into lab machine):
+#   - REMOTE_HOST
+#   - REMOTE_USER
+#   - REMOTE_PASSWORD (Masked)
+#   - REMOTE_WORK_DIR
+#
+# Cluster:
+#   - CLUSTER_NAME
+#   - BASE_DOMAIN
+#
+# Network:
+#   - API_VIP
+#   - INGRESS_VIP
+#   - DPU_HOST_CIDR
+#   - HBN_OVN_NETWORK
+#   - BFB_URL
+#   - TARGETCLUSTER_API_SERVER_HOST
+#
+# Workers:
+#   - WORKER_1_NAME, WORKER_1_BMC_IP, WORKER_1_BMC_USER, WORKER_1_BMC_PASSWORD, WORKER_1_BOOT_MAC
+#   - WORKER_2_NAME, WORKER_2_BMC_IP, WORKER_2_BMC_USER, WORKER_2_BMC_PASSWORD, WORKER_2_BOOT_MAC
+#   - MAC_PREFIX
+#   - HBN_HOSTNAME_NODE1, HBN_HOSTNAME_NODE2
+#
+# Pull Secrets (paste JSON content, mark as Masked):
+#   - OPENSHIFT_PULL_SECRET_CONTENT  - Red Hat pull secret JSON
+#   - DPF_PULL_SECRET_CONTENT        - NGC pull secret JSON
+# =============================================================================
+
+stages:
+  - e2e
+
+variables:
+  # Defaults (override via CI/CD variables as needed)
+  OPENSHIFT_VERSION: "4.20.4"
+  USE_V419_WORKAROUND: "true"
+  BRIDGE_NAME: mgmt-br
+  SKIP_BRIDGE_CONFIG: "true"
+  MANIFESTS_DIR: manifests
+  GENERATED_DIR: manifests/generated
+  POST_INSTALL_DIR: manifests/post-installation
+  GENERATED_POST_INSTALL_DIR: manifests/generated/post-install
+  SSH_KEY: /root/.ssh/id_rsa.pub
+  DPF_VERSION: v25.10.1
+  DPF_HELM_REPO_URL: https://helm.ngc.nvidia.com/nvidia/doca/
+  OVN_CHART_URL: oci://ghcr.io/mellanox/charts
+  OVN_TEMPLATE_CHART_URL: oci://ghcr.io/mellanox/charts
+  OVN_CHART_VERSION: v25.7.1-cff70b1
+  OVN_KUBERNETES_IMAGE_REPO: quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256
+  OVN_KUBERNETES_IMAGE_TAG: de9b16e0bb85c3b5727d525012435516df345830661324cca4e8b1cbe4972e7a
+  GITOPS_OPERATOR_CHANNEL: "1.16"
+  GITOPS_OPERATOR_VERSION: v1.16.4
+  HYPERSHIFT_IMAGE: quay.io/hypershift/hypershift-operator:latest
+  HOSTED_CLUSTER_NAME: doca
+  CLUSTERS_NAMESPACE: clusters
+  HOSTED_CONTROL_PLANE_NAMESPACE: clusters-doca
+  OCP_RELEASE_IMAGE: quay.io/openshift-release-dev/ocp-release:4.20.4-multi
+  DISABLE_HCP_CAPS: "true"
+  DPF_CLUSTER_TYPE: hypershift
+  POD_CIDR: 10.128.0.0/14
+  SERVICE_CIDR: 172.30.0.0/16
+  DPU_INTERFACE: ens5f0np0
+  DPU_OVN_VF: ens5f0v1
+  OPENSHIFT_PULL_SECRET: openshift_pull.json
+  DPF_PULL_SECRET: pull-secret.txt
+  HBN_HELM_REPO_URL: https://helm.ngc.nvidia.com/nvstaging/doca
+  HBN_HELM_CHART_VERSION: "1.0.3"
+  HBN_IMAGE_REPO: nvcr.io/nvstaging/doca/doca_hbn
+  HBN_IMAGE_TAG: release-3.1.0.7-doca3.1.0-RHTP
+  VM_PREFIX: vm-dpf-dmz
+  VM_COUNT: "1"
+  RAM: "65536"
+  VCPUS: "24"
+  DISK_SIZE1: "120"
+  DISK_SIZE2: "80"
+  MAX_RETRIES: "90"
+  SLEEP_TIME: "60"
+  DISK_PATH: /var/lib/libvirt/images
+  ISO_FOLDER: /var/lib/libvirt/images
+  BFB_STORAGE_CLASS: lvms-vg1
+  KUBECONFIG: ./kubeconfig
+  WORKER_COUNT: "2"
+  WORKER_1_ROOT_DEVICE: /dev/nvme0n1
+  WORKER_1_REDFISH_SYSTEM_PATH: /
+  WORKER_2_ROOT_DEVICE: /dev/nvme0n1
+  WORKER_2_REDFISH_SYSTEM_PATH: /
+  AUTO_APPROVE_WORKER_CSR: "true"
+  AUTO_APPROVE_DPUCLUSTER_CSR: "true"
+  # Verification settings
+  VERIFY_DEPLOYMENT: "true"
+  VERIFY_MAX_RETRIES: "60"
+  VERIFY_SLEEP_SECONDS: "30"
+
+dpf-on-ocp-e2e:
+  stage: e2e
+  tags:
+    - type/shell
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+  script:
+    - echo "Starting e2e test - $(date)"
+    
+    # Generate .env from template
+    - envsubst < ci/env.template > .env
+    - echo "Generated .env file:"
+    - cat .env
+    
+    # Sync repo to remote host
+    - echo "Syncing repo to ${REMOTE_HOST}:${REMOTE_WORK_DIR}..."
+    - sshpass -p "${REMOTE_PASSWORD}" ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "mkdir -p ${REMOTE_WORK_DIR}"
+    - sshpass -p "${REMOTE_PASSWORD}" rsync -avz --delete -e "ssh -o StrictHostKeyChecking=no" ./ ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_WORK_DIR}/
+    
+    # Write pull secret files locally then SCP (avoids shell escaping issues)
+    - echo "Writing pull secrets..."
+    - printf '%s' "${OPENSHIFT_PULL_SECRET_CONTENT}" > ${OPENSHIFT_PULL_SECRET}
+    - printf '%s' "${DPF_PULL_SECRET_CONTENT}" > ${DPF_PULL_SECRET}
+    - sshpass -p "${REMOTE_PASSWORD}" scp -o StrictHostKeyChecking=no ${OPENSHIFT_PULL_SECRET} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_WORK_DIR}/
+    - sshpass -p "${REMOTE_PASSWORD}" scp -o StrictHostKeyChecking=no ${DPF_PULL_SECRET} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_WORK_DIR}/
+    
+    # Run deployment (includes verification when VERIFY_DEPLOYMENT=true)
+    - echo "Running deployment on remote host..."
+    - |
+      sshpass -p "${REMOTE_PASSWORD}" ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "
+        set -e
+        cd ${REMOTE_WORK_DIR}
+        echo 'Working directory:' \$(pwd)
+        sudo make clean-all || true
+        sudo make delete-cluster || true
+        sudo make all
+      "
+    
+    - echo "E2E test completed successfully - $(date)"
+  timeout: 4h
