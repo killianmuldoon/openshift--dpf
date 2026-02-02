@@ -9,7 +9,7 @@ spec:
 
   # Reference to DPUCluster CR (created by DPF operator)
   dpuClusterRef:
-    name: cluster
+    name: <HOSTED_CLUSTER_NAME>
     namespace: dpf-operator-system
 
   # Storage class for etcd
