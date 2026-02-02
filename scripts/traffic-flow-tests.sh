@@ -224,10 +224,14 @@ generate_config() {
 run_tests() {
     log "INFO" "Running traffic flow tests..."
     
-    local output_dir="${TFT_WORK_DIR}/results/$(date +%Y%m%d_%H%M%S)"
-    mkdir -p "${output_dir}"
+    # Create results directory - tft.py will write files with pattern: <output_base><timestamp>.json
+    local results_base_dir="${TFT_WORK_DIR}/results"
+    mkdir -p "${results_base_dir}"
     
-    log "INFO" "Test results will be saved to: ${output_dir}"
+    # Generate output base path (tft.py appends millisecond timestamp and .json)
+    local output_base="${results_base_dir}/$(date +%Y%m%d_%H%M%S)"
+
+    log "INFO" "Test results will be saved with base: ${output_base}"
     
     pushd "${TFT_WORK_DIR}" > /dev/null
     
@@ -236,10 +240,33 @@ run_tests() {
     source "${TFT_VENV_DIR}/bin/activate"
     
     # Run the tests
-    log "INFO" "Executing: ./tft.py ${TFT_CONFIG_OUTPUT} --output-base ${output_dir}"
+    log "INFO" "Executing: ./tft.py ${TFT_CONFIG_OUTPUT} --output-base ${output_base}"
+
+    # Run tft.py - ignore exit code as it may return 0 even on test failures
+    ./tft.py "${TFT_CONFIG_OUTPUT}" --output-base "${output_base}" || true
     
+    # Find the results JSON file - tft.py writes to <output_base><milliseconds>.json
+    local results_file
+    results_file=$(find "${results_base_dir}" -maxdepth 1 -name "$(basename "${output_base}")*.json" -type f 2>/dev/null | sort | tail -1)
+
+    # Check test results from JSON file
     local test_result=0
-    if ./tft.py "${TFT_CONFIG_OUTPUT}" --output-base "${output_dir}"; then
+    if [[ -n "${results_file}" ]] && [[ -f "${results_file}" ]]; then
+        log "INFO" "Results saved to: ${results_file}"
+
+        # Check for success in JSON - look for "success": false or "Success": false
+        if grep -qE '"[Ss]uccess"\s*:\s*false' "${results_file}"; then
+            test_result=1
+        fi
+    else
+        log "WARN" "No JSON results file found matching ${output_base}*.json"
+        log "INFO" "Available result files in ${results_base_dir}:"
+        ls -la "${results_base_dir}" 2>/dev/null || true
+        test_result=1
+    fi
+
+    # Report pass/fail
+    if [[ ${test_result} -eq 0 ]]; then
         log "INFO" "================================================================================"
         log "INFO" "Traffic flow tests PASSED"
         log "INFO" "================================================================================"
@@ -247,27 +274,15 @@ run_tests() {
         log "ERROR" "================================================================================"
         log "ERROR" "Traffic flow tests FAILED"
         log "ERROR" "================================================================================"
-        test_result=1
     fi
     
-    # Generate and display results report
-    log "INFO" "Results saved to: ${output_dir}"
-    if [[ -f "./print_results.py" ]]; then
+    # Display results summary
+    if [[ -f "./print_results.py" ]] && [[ -n "${results_file}" ]] && [[ -f "${results_file}" ]]; then
         log "INFO" ""
         log "INFO" "================================================================================"
         log "INFO" "TEST RESULTS SUMMARY"
         log "INFO" "================================================================================"
-        # Find the most recent results JSON file
-        local results_file
-        results_file=$(find "${output_dir}" -name "*.json" -type f 2>/dev/null | head -1)
-        if [[ -n "${results_file}" ]]; then
-            ./print_results.py "${results_file}" 2>/dev/null || true
-        else
-            log "WARN" "No JSON results file found in ${output_dir}"
-            # List what files are available
-            log "INFO" "Available result files:"
-            ls -la "${output_dir}" 2>/dev/null || true
-        fi
+        ./print_results.py "${results_file}" 2>/dev/null || true
     fi
     
     popd > /dev/null
@@ -299,16 +314,18 @@ show_results() {
         return 1
     fi
     
-    # Find the most recent results directory
-    local latest_run
-    latest_run=$(ls -td "${results_dir}"/*/ 2>/dev/null | head -1)
+    # Find the most recent results JSON file (tft.py writes files directly to results dir)
+    local results_file
+    results_file=$(find "${results_dir}" -maxdepth 1 -name "*.json" -type f 2>/dev/null | sort | tail -1)
     
-    if [[ -z "${latest_run}" ]]; then
-        log "ERROR" "No test runs found in ${results_dir}"
+    if [[ -z "${results_file}" ]]; then
+        log "ERROR" "No test results found in ${results_dir}"
+        log "INFO" "Available files:"
+        ls -la "${results_dir}" 2>/dev/null || true
         return 1
     fi
     
-    log "INFO" "Latest test run: ${latest_run}"
+    log "INFO" "Latest results file: ${results_file}"
     
     pushd "${TFT_WORK_DIR}" > /dev/null
     
@@ -319,28 +336,20 @@ show_results() {
     fi
     
     if [[ -f "./print_results.py" ]]; then
-        local results_file
-        results_file=$(find "${latest_run}" -name "*.json" -type f 2>/dev/null | head -1)
-        if [[ -n "${results_file}" ]]; then
-            log "INFO" "================================================================================"
-            log "INFO" "TEST RESULTS SUMMARY"
-            log "INFO" "================================================================================"
-            ./print_results.py "${results_file}"
-        else
-            log "WARN" "No JSON results file found"
-            log "INFO" "Available files in ${latest_run}:"
-            ls -la "${latest_run}"
-        fi
+        log "INFO" "================================================================================"
+        log "INFO" "TEST RESULTS SUMMARY"
+        log "INFO" "================================================================================"
+        ./print_results.py "${results_file}"
     else
         log "ERROR" "print_results.py not found - run 'setup' first"
     fi
     
     popd > /dev/null
     
-    # List all available runs
+    # List all available results
     echo ""
-    echo "All available test runs:"
-    ls -lt "${results_dir}" 2>/dev/null | head -10
+    echo "All available test results:"
+    ls -lt "${results_dir}"/*.json 2>/dev/null | head -10 || echo "No JSON files found"
 }
 
 # -----------------------------------------------------------------------------
