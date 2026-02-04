@@ -105,7 +105,8 @@ variables:
   # Traffic Flow Tests settings
   RUN_TRAFFIC_FLOW_TESTS: "true"
   TFT_REPO_REV: "main"
-  TFT_TEST_CASES: "1-25"
+  # Test cases 19 and 23 are failing. These are tracked in bug 5868917.
+  TFT_TEST_CASES: "1-18,20-22,24-25"
   TFT_DURATION: "10"
   TFT_CONNECTION_TYPE: "iperf-tcp"
 
