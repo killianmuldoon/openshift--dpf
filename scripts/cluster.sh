@@ -232,8 +232,8 @@ function start_cluster_installation() {
     wait_for_cluster_status "installed"
     log "INFO" "Cluster installation completed successfully"
     get_kubeconfig
-    if [ "${USE_V419_WORKAROUND}" == "true" ]; then
-        log "INFO" "Using v4.19 workaround. Deploying LSO and ODF..."
+    if [ "${STORAGE_TYPE}" == "odf" ]; then
+        log "INFO" "STORAGE_TYPE=odf detected. Deploying LSO and ODF..."
         deploy_lso
         deploy_odf
     fi
@@ -355,12 +355,17 @@ function deploy_lso() {
 # Create ODF cluster as a workaround for OCS cluster creation issue
 # This is a temporary solution until the OCS cluster creation with LSO 4.19 will be fixed
 function deploy_odf() {
-    # Only deploy ODF for multi-node clusters
-    if [ "${VM_COUNT}" -le 1 ]; then
-        log "INFO" "Single-node cluster detected (VM_COUNT=${VM_COUNT}). Skipping ODF deployment."
+    if [ "${VM_COUNT}" -lt 3 ]; then
+        log "INFO" "ODF requires at least 3 nodes (VM_COUNT=${VM_COUNT}). Skipping ODF deployment."
         return 0
     fi
-    
+
+    if [ "${STORAGE_TYPE}" != "odf" ]; then
+        log "INFO" "STORAGE_TYPE is not 'odf' (current: ${STORAGE_TYPE}). Skipping ODF deployment."
+        log "INFO" "To use ODF, set STORAGE_TYPE=odf in your .env file."
+        return 0
+    fi
+
     log "INFO" "Multi-node cluster detected (VM_COUNT=${VM_COUNT}). Deploying OpenShift Data Foundation..."
     
     get_kubeconfig

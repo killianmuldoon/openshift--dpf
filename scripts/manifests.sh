@@ -460,25 +460,20 @@ function generate_ovn_manifests() {
 }
 
 function enable_storage() {
-    log [INFO] "Enabling storage operator"
-    
+    log [INFO] "Enabling storage operator (STORAGE_TYPE=${STORAGE_TYPE})"
+
     # Check if cluster is already installed
     if check_cluster_installed; then
         log [INFO] "Skipping storage operator configuration as cluster is already installed"
         return 0
     fi
-    
-    # Update cluster with storage operator
-    if [ "$VM_COUNT" -eq 1 ]; then
-        log [INFO] "Enable LVM operator"
-        aicli update cluster "$CLUSTER_NAME" -P olm_operators='[{"name": "lvm"}]'
+
+    if [ "${STORAGE_TYPE}" == "odf" ]; then
+        log [INFO] "Enable LSO operator via assisted installer OLM (ODF will be deployed post-install)"
+        aicli update cluster "$CLUSTER_NAME" -P olm_operators='[{"name": "lso"}]'
     else
-        if [ "${USE_V419_WORKAROUND}" = "false" ]; then
-            log [INFO] "Enable ODF operator via assisted installer OLM"
-            aicli update cluster "$CLUSTER_NAME" -P olm_operators='[{"name": "lso"}, {"name": "odf"}]'
-        else
-            log [INFO] "Skipping assisted installer OLM (using v4.19 workaround)"
-        fi
+        log [INFO] "Enable LVM operator via assisted installer OLM"
+        aicli update cluster "$CLUSTER_NAME" -P olm_operators='[{"name": "lvm"}]'
     fi
 }
 

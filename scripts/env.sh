@@ -146,12 +146,23 @@ HOST_CLUSTER_API=${HOST_CLUSTER_API:-"api.$CLUSTER_NAME.$BASE_DOMAIN"}
 NFS_SERVER_NODE_IP=${NFS_SERVER_NODE_IP:-""}
 NFS_PATH=${NFS_PATH:-"/"}
 
-if [ "${VM_COUNT}" -lt 2 ]; then
-  ETCD_STORAGE_CLASS=${ETCD_STORAGE_CLASS:-"lvms-vg1"}
-  BFB_STORAGE_CLASS=${BFB_STORAGE_CLASS:-"nfs-client"}
+# Storage Configuration
+# STORAGE_TYPE: Choose storage backend for Hypershift etcd
+#   - lvm: Logical Volume Manager Storage (default, works for SNO and MNO)
+#   - odf: OpenShift Data Foundation (multi-node only, requires 3+ nodes)
+STORAGE_TYPE=${STORAGE_TYPE:-"lvm"}
+
+# Validate ODF requires at least 3 nodes
+if [ "${STORAGE_TYPE}" == "odf" ] && [ "${VM_COUNT}" -lt 3 ]; then
+    echo "Warning: ODF requires at least 3 nodes. Falling back to LVM." >&2
+    STORAGE_TYPE="lvm"
+fi
+
+# Set storage class based on STORAGE_TYPE
+if [ "${STORAGE_TYPE}" == "odf" ]; then
+    ETCD_STORAGE_CLASS=${ETCD_STORAGE_CLASS:-"ocs-storagecluster-ceph-rbd"}
 else
-  ETCD_STORAGE_CLASS=${ETCD_STORAGE_CLASS:-"ocs-storagecluster-ceph-rbd"}
-  BFB_STORAGE_CLASS=${BFB_STORAGE_CLASS:-""}
+    ETCD_STORAGE_CLASS=${ETCD_STORAGE_CLASS:-"lvms-vg1"}
 fi
 NUM_VFS=${NUM_VFS:-"46"}
 
