@@ -48,6 +48,7 @@ variables:
 
 dpf-on-ocp-e2e:
   stage: e2e
+  resource_group: ocp_setup_8
   tags:
     - type/shell
   rules:
