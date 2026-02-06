@@ -1,6 +1,0 @@
-imagePullSecrets:
-  - name: dpf-pull-secret
-kamajiEtcdDefrag:
-  enabled: false
-isOpenshift: true
-enableNodeFeatureRules: false
