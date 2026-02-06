@@ -40,7 +40,7 @@ stages:
 
 variables:
   REPO_URL: "https://github.com/killianmuldoon/openshift--dpf"
-  REPO_REF: "pr-verify-dpf-deployment"
+  REPO_REF: "pr-fix-ci"
   OPENSHIFT_PULL_SECRET: openshift_pull.json
   DPF_PULL_SECRET: pull-secret.txt
   RUN_TRAFFIC_FLOW_TESTS: "true"
