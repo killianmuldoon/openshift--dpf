@@ -44,15 +44,13 @@ variables:
   OPENSHIFT_PULL_SECRET: openshift_pull.json
   DPF_PULL_SECRET: pull-secret.txt
   RUN_TRAFFIC_FLOW_TESTS: "true"
-  CI_ANSI_FORCE: "false"  # Disable ANSI color codes in output
 
 dpf-on-ocp-e2e:
   stage: e2e
-  resource_group: ocp_setup_8
   tags:
     - type/shell
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $DPF_ON_OCP_E2E == "true"
     - if: $CI_PIPELINE_SOURCE == "web"
       when: manual
   script:
