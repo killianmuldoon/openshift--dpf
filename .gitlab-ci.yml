@@ -44,6 +44,7 @@ variables:
   OPENSHIFT_PULL_SECRET: openshift_pull.json
   DPF_PULL_SECRET: pull-secret.txt
   RUN_TRAFFIC_FLOW_TESTS: "true"
+  CI_ANSI_FORCE: "false"  # Disable ANSI color codes in output
 
 dpf-on-ocp-e2e:
   stage: e2e
@@ -125,3 +126,24 @@ dpf-on-ocp-e2e:
 
     - echo "E2E test completed successfully - $(date)"
   timeout: 4h
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" != "success" ]; then
+        echo "Job failed, sending Slack notification..."
+
+        # Send variables to Slack Workflow for formatting
+        PAYLOAD=$(jq -n \
+          --arg name "${CI_JOB_NAME}" \
+          --arg url "${CI_PIPELINE_URL}" \
+          --arg branch "${REPO_REF}" \
+          '{
+            message: "Pipeline Failed",
+            pipeline_name: $name,
+            pipeline_url: $url,
+            branch: $branch
+          }')
+
+        curl -X POST -H 'Content-type: application/json' \
+          --data "${PAYLOAD}" \
+          "${SLACK_WEBHOOK_URL}"
+      fi
