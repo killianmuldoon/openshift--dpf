@@ -127,8 +127,8 @@ dpf-on-ocp-e2e:
   timeout: 4h
   after_script:
     - |
-      if [ "$CI_JOB_STATUS" != "success" ]; then
-        echo "Job failed, sending Slack notification..."
+      if [ "$CI_JOB_STATUS" != "success" ] && [ "$CI_PIPELINE_SOURCE" = "schedule" ]; then
+        echo "Scheduled job failed, sending Slack notification..."
 
         # Send variables to Slack Workflow for formatting
         PAYLOAD=$(jq -n \
