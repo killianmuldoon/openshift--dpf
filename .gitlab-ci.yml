@@ -43,7 +43,7 @@ variables:
   REPO_REF: "pr-fix-ci"
   OPENSHIFT_PULL_SECRET: openshift_pull.json
   DPF_PULL_SECRET: pull-secret.txt
-  RUN_TRAFFIC_FLOW_TESTS: "false"
+  RUN_TRAFFIC_FLOW_TESTS: "true"
 
 dpf-on-ocp-e2e:
   stage: e2e
