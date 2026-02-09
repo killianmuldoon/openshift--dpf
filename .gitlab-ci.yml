@@ -39,8 +39,8 @@ stages:
   - e2e
 
 variables:
-  REPO_URL: "https://github.com/killianmuldoon/openshift--dpf"
-  REPO_REF: "pr-fix-ci"
+  REPO_URL: "https://github.com/rh-ecosystem-edge/openshift-dpf"
+  REPO_REF: "dpf-25.10"
   OPENSHIFT_PULL_SECRET: openshift_pull.json
   DPF_PULL_SECRET: pull-secret.txt
   RUN_TRAFFIC_FLOW_TESTS: "true"
