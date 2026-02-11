@@ -3,7 +3,7 @@
 #
 # This pipeline:
 # 1. Clones repo from REPO_URL at REPO_REF on remote host
-# 2. Generates .env from ci/env.defaults + ci/env.required + ci/env.template
+# 2. Extracts CI variables and runs `make generate-env` on the remote host
 # 3. Runs deployment via SSH
 #
 # =============================================================================
@@ -39,11 +39,30 @@ stages:
   - e2e
 
 variables:
-  REPO_URL: "https://github.com/rh-ecosystem-edge/openshift-dpf"
-  REPO_REF: "dpf-25.10"
+  REPO_URL: "https://github.com/killianmuldoon/openshift--dpf"
+  REPO_REF: "pr-env-files"
   OPENSHIFT_PULL_SECRET: openshift_pull.json
   DPF_PULL_SECRET: pull-secret.txt
   RUN_TRAFFIC_FLOW_TESTS: "true"
+  # SSH key path on the remote host (not the runner)
+  SSH_KEY: "/root/.ssh/id_rsa.pub"
+  # Overrides for defaults that differ from env.defaults
+  DISABLE_HCP_CAPS: "true"
+  VM_PREFIX: "vm-dpf-dmz"
+  VM_COUNT: "1"
+  RAM: "65536"
+  VCPUS: "24"
+  WORKER_COUNT: "2"
+  WORKER_1_ROOT_DEVICE: "/dev/nvme0n1"
+  WORKER_1_REDFISH_SYSTEM_PATH: "/"
+  WORKER_2_ROOT_DEVICE: "/dev/nvme0n1"
+  WORKER_2_REDFISH_SYSTEM_PATH: "/"
+  AUTO_APPROVE_WORKER_CSR: "true"
+  AUTO_APPROVE_DPUCLUSTER_CSR: "true"
+  VERIFY_DEPLOYMENT: "true"
+  VERIFY_MAX_RETRIES: "120"
+  VERIFY_SLEEP_SECONDS: "60"
+  TFT_TEST_CASES: "1-18,20-22,24-25"
 
 dpf-on-ocp-e2e:
   stage: e2e
@@ -68,27 +87,22 @@ dpf-on-ocp-e2e:
         echo 'Checked out:' \$(git rev-parse HEAD)
       "
 
-    # Copy ci/ directory from current repo to remote host
-    - echo "Copying ci/ directory to remote host..."
-    - sshpass -p "${REMOTE_PASSWORD}" scp -r -o StrictHostKeyChecking=no ci/ ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_WORK_DIR}/
-
-    # Generate .env locally and copy to remote host
-    - echo "Generating .env locally..."
+    # Generate .env from the cloned repo's template using CI variables
+    - echo "Generating .env..."
+    - sshpass -p "${REMOTE_PASSWORD}" scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_WORK_DIR}/ci/env.defaults /tmp/
+    - sshpass -p "${REMOTE_PASSWORD}" scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_WORK_DIR}/ci/env.required /tmp/
+    - sshpass -p "${REMOTE_PASSWORD}" scp -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_WORK_DIR}/ci/env.template /tmp/
     - |
       set -e
-      # Source defaults (exports them as env vars for envsubst)
       set -a
-      source ci/env.defaults
+      source /tmp/env.defaults
       set +a
-      # Validate required variables
-      source ci/env.required
-      # Generate .env file
-      envsubst < ci/env.template > /tmp/generated.env
+      source /tmp/env.required
+      envsubst < /tmp/env.template > /tmp/generated.env
       echo "Generated .env contents:"
       cat /tmp/generated.env
-    - echo "Copying .env to remote host..."
     - sshpass -p "${REMOTE_PASSWORD}" scp -o StrictHostKeyChecking=no /tmp/generated.env ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_WORK_DIR}/.env
-    - rm -f /tmp/generated.env
+    - rm -f /tmp/env.defaults /tmp/env.required /tmp/env.template /tmp/generated.env
 
     # Copy pull secrets to remote host
     - echo "Copying pull secrets..."
