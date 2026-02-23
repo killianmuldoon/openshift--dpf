@@ -51,6 +51,26 @@ if [ -z "${MAKELEVEL:-}" ]; then
     validate_mtu
 fi
 
+# Make's `include .env` expands $ as Make variable references, which mangles
+# values like password hashes (e.g. $6$salt$hash). Re-read such values
+# directly from .env to get the un-mangled originals.
+_read_raw_env_value() {
+    local var_name="$1"
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local env_file="${script_dir}/../.env"
+    [ -f "$env_file" ] || return 0
+    local line
+    line=$(grep "^${var_name}=" "$env_file" 2>/dev/null) || return 0
+    local val="${line#*=}"
+    if [[ "$val" == \'*\' ]]; then
+        val="${val:1:${#val}-2}"
+    elif [[ "$val" == \"*\" ]]; then
+        val="${val:1:${#val}-2}"
+    fi
+    export "$var_name=$val"
+}
+_read_raw_env_value SET_CORE_OS_PASSWORD_TO_HASH
+
 # Directory Configuration
 MANIFESTS_DIR=${MANIFESTS_DIR:-"manifests"}
 GENERATED_DIR=${GENERATED_DIR:-"$MANIFESTS_DIR/generated"}
@@ -194,7 +214,7 @@ ENABLE_HCP_MULTUS=${ENABLE_HCP_MULTUS:-"true"}
 HYPERSHIFT_IMAGE=${HYPERSHIFT_IMAGE:-"quay.io/hypershift/hypershift-operator:latest"}
 HOSTED_CLUSTER_NAME=${HOSTED_CLUSTER_NAME:-"doca"}
 CLUSTERS_NAMESPACE=${CLUSTERS_NAMESPACE:-"clusters"}
-OCP_RELEASE_IMAGE=${OCP_RELEASE_IMAGE:-"quay.io/openshift-release-dev/ocp-release:4.20.4-x86_64"}
+OCP_RELEASE_IMAGE=${OCP_RELEASE_IMAGE:-"quay.io/openshift-release-dev/ocp-release:4.21.0-x86_64"}
 HOSTED_CONTROL_PLANE_NAMESPACE="${CLUSTERS_NAMESPACE}-${HOSTED_CLUSTER_NAME}"
 
 
