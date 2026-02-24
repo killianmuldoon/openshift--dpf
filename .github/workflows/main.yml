@@ -16,6 +16,8 @@
 name: Release
 
 on:
+  schedule:
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       ref:
@@ -40,8 +42,8 @@ permissions:
 
 env:
   SOURCE_REPO: https://github.com/NVIDIA/doca-platform.git
-  REGISTRY: ghcr.io/rh-ecosystem-edge/openshift-dpf
-  HELM_REGISTRY: oci://ghcr.io/rh-ecosystem-edge/openshift-dpf/charts
+  REGISTRY: ghcr.io/killianmuldoon/doca-platform
+  HELM_REGISTRY: oci://ghcr.io/killianmuldoon/doca-platform/charts
   CONTAINER_TOOL: docker
 
 jobs:
@@ -49,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      UPSTREAM_REGISTRY: ghcr.io/rh-ecosystem-edge/openshift-dpf
+      UPSTREAM_REGISTRY: ghcr.io/killianmuldoon/doca-platform
     defaults:
       run:
         working-directory: source
