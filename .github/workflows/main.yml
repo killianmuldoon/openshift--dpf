@@ -63,13 +63,14 @@ jobs:
         run: |
           git clone "${{ env.SOURCE_REPO }}" "$GITHUB_WORKSPACE/source"
           cd "$GITHUB_WORKSPACE/source"
-          git checkout "${{ inputs.ref }}"
+          git checkout "${{ inputs.ref || 'public-main' }}"
         working-directory: ${{ github.workspace }}
 
       - name: Resolve tag
         run: |
-          if [[ -n "${{ inputs.tag }}" ]]; then
-            echo "TAG=${{ inputs.tag }}" >> "$GITHUB_ENV"
+          INPUT_TAG="${{ inputs.tag }}"
+          if [[ -n "${INPUT_TAG}" ]]; then
+            echo "TAG=${INPUT_TAG}" >> "$GITHUB_ENV"
           else
             SHORT_SHA=$(git rev-parse --short HEAD)
             echo "TAG=26.4.0-${SHORT_SHA}" >> "$GITHUB_ENV"
@@ -78,7 +79,7 @@ jobs:
       - name: Verify checkout
         run: |
           echo "Repository : ${{ env.SOURCE_REPO }}"
-          echo "Ref        : ${{ inputs.ref }}"
+          echo "Ref        : ${{ inputs.ref || 'public-main' }}"
           echo "Tag        : ${{ env.TAG }}"
           echo "Commit     : $(git rev-parse HEAD)"
 
@@ -140,10 +141,9 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          TAG="${{ inputs.tag }}"
           DRY="${{ inputs.dry_run }}"
-          echo "## Release ${TAG}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Source: \`${{ env.SOURCE_REPO }}\` @ \`${{ inputs.ref }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Release ${{ env.TAG }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source: \`${{ env.SOURCE_REPO }}\` @ \`${{ inputs.ref || 'public-main' }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Commit: \`$(git rev-parse HEAD)\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [[ "$DRY" == "true" ]]; then
@@ -151,7 +151,7 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "### Container images" >> "$GITHUB_STEP_SUMMARY"
-          echo "All images pushed to \`${{ env.REGISTRY }}\` with tag \`${TAG}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "All images pushed to \`${{ env.REGISTRY }}\` with tag \`${{ env.TAG }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Helm charts" >> "$GITHUB_STEP_SUMMARY"
           echo "Pushed to \`${{ env.HELM_REGISTRY }}\`" >> "$GITHUB_STEP_SUMMARY"
