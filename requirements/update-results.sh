@@ -2,6 +2,8 @@
 #
 # update-results.sh — Run tests for each requirement and post results to GitHub Issues.
 #
+# Finds issues by their REQ-XXX label (no issue numbers stored in JSON).
+#
 # Usage:
 #   ./requirements/update-results.sh [--dry-run] [REQ-001 REQ-002 ...]
 #
@@ -20,7 +22,7 @@
 #   REQUIREMENTS_FILE  — path to requirements JSON (default: requirements/requirements.json)
 #   RUN_URL            — optional link to a CI run or context for the comment
 
-set -euo pipefail
+set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -41,16 +43,34 @@ if [[ "${DRY_RUN}" == "true" ]]; then
 fi
 
 if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
-    GITHUB_REPOSITORY=$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null || true)
-    if [[ -z "${GITHUB_REPOSITORY}" ]]; then
-        echo "ERROR: GITHUB_REPOSITORY is not set and could not be detected." >&2
-        exit 1
-    fi
+    GITHUB_REPOSITORY=$(jq -r '.repo // empty' "${REQUIREMENTS_FILE}" 2>/dev/null || true)
+fi
+if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
+    echo "ERROR: GITHUB_REPOSITORY is not set and 'repo' is not defined in ${REQUIREMENTS_FILE}." >&2
+    exit 1
 fi
 
 REPO_FLAG="-R ${GITHUB_REPOSITORY}"
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 RUN_URL="${RUN_URL:-}"
+
+# ── Build label -> issue number map ──────────────────────────────────
+echo "=== Fetching issue mapping ==="
+declare -A ISSUE_MAP
+ISSUE_LIST=$(gh issue list ${REPO_FLAG} --state all --limit 500 --json number,labels \
+    --jq '.[] | "\(.number)|\([.labels[].name] | join(","))"' 2>/dev/null || true)
+
+while IFS='|' read -r num labels; do
+    [[ -z "${num}" ]] && continue
+    for label in $(echo "${labels}" | tr ',' '\n'); do
+        if [[ "${label}" =~ ^REQ-[0-9]+$ ]]; then
+            ISSUE_MAP["${label}"]="${num}"
+        fi
+    done
+done <<< "${ISSUE_LIST}"
+
+echo "  Mapped ${#ISSUE_MAP[@]} requirement issues."
+echo ""
 
 REQ_COUNT=$(jq '.requirements | length' "${REQUIREMENTS_FILE}")
 PASS_COUNT=0
@@ -66,7 +86,6 @@ for i in $(seq 0 $((REQ_COUNT - 1))); do
     REQ_ID=$(jq -r ".requirements[${i}].id" "${REQUIREMENTS_FILE}")
     REQ_TEXT=$(jq -r ".requirements[${i}].requirement" "${REQUIREMENTS_FILE}")
     TEST_IMPL=$(jq -r ".requirements[${i}].test_implementation" "${REQUIREMENTS_FILE}")
-    ISSUE_NUM=$(jq -r ".requirements[${i}].issue_number" "${REQUIREMENTS_FILE}")
 
     # If specific IDs were requested, skip others
     if [[ ${#FILTER_IDS[@]} -gt 0 ]]; then
@@ -88,8 +107,9 @@ for i in $(seq 0 $((REQ_COUNT - 1))); do
         continue
     fi
 
-    if [[ "${ISSUE_NUM}" == "null" || -z "${ISSUE_NUM}" ]]; then
-        echo "  [${REQ_ID}] No issue number — run sync-issues.sh first."
+    ISSUE_NUM="${ISSUE_MAP[${REQ_ID}]:-}"
+    if [[ -z "${ISSUE_NUM}" ]]; then
+        echo "  [${REQ_ID}] No issue found — run sync-issues.sh first."
         SKIP_COUNT=$((SKIP_COUNT + 1))
         continue
     fi

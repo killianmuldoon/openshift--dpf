@@ -2,6 +2,10 @@
 #
 # sync-issues.sh — Sync requirements.json to GitHub Issues and a GitHub Project.
 #
+# Idempotent: each requirement gets a label matching its ID (e.g. REQ-001).
+# The script searches by label to find existing issues, so re-runs never
+# produce duplicates. No issue numbers are stored in the JSON.
+#
 # Usage:
 #   ./requirements/sync-issues.sh [--dry-run]
 #
@@ -14,7 +18,7 @@
 #   REQUIREMENTS_FILE  — path to requirements JSON (default: requirements/requirements.json)
 #   PROJECT_TOKEN      — GitHub token with project scope (falls back to GH_TOKEN / GITHUB_TOKEN)
 
-set -euo pipefail
+set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -27,11 +31,11 @@ if [[ "${1:-}" == "--dry-run" ]]; then
 fi
 
 if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
-    GITHUB_REPOSITORY=$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null || true)
-    if [[ -z "${GITHUB_REPOSITORY}" ]]; then
-        echo "ERROR: GITHUB_REPOSITORY is not set and could not be detected." >&2
-        exit 1
-    fi
+    GITHUB_REPOSITORY=$(jq -r '.repo // empty' "${REQUIREMENTS_FILE}" 2>/dev/null || true)
+fi
+if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
+    echo "ERROR: GITHUB_REPOSITORY is not set and 'repo' is not defined in ${REQUIREMENTS_FILE}." >&2
+    exit 1
 fi
 
 echo "Repository : ${GITHUB_REPOSITORY}"
@@ -64,21 +68,47 @@ for entry in "${STATUS_LABELS[@]}"; do
         gh label create "${label}" ${REPO_FLAG} --color "${color}" --force 2>/dev/null || true
     fi
 done
+
+REQ_IDS=$(jq -r '.requirements[].id' "${REQUIREMENTS_FILE}" | sort -u)
+for req_id in ${REQ_IDS}; do
+    echo "  Label: ${req_id}"
+    if [[ "${DRY_RUN}" == "false" ]]; then
+        gh label create "${req_id}" ${REPO_FLAG} --color "1d76db" --force 2>/dev/null || true
+    fi
+done
+echo ""
+
+# ── Fetch existing issues by label to avoid duplicates ───────────────
+echo "=== Fetching existing issues ==="
+declare -A EXISTING_ISSUES
+ISSUE_LIST=$(gh issue list ${REPO_FLAG} --state all --limit 500 --json number,labels \
+    --jq '.[] | "\(.number)|\([.labels[].name] | join(","))"' 2>/dev/null || true)
+
+while IFS='|' read -r num labels; do
+    [[ -z "${num}" ]] && continue
+    for label in $(echo "${labels}" | tr ',' '\n'); do
+        if [[ "${label}" =~ ^REQ-[0-9]+$ ]]; then
+            EXISTING_ISSUES["${label}"]="${num}"
+        fi
+    done
+done <<< "${ISSUE_LIST}"
+
+echo "  Found ${#EXISTING_ISSUES[@]} existing requirement issues."
 echo ""
 
 # ── Create or update issues ──────────────────────────────────────────
 echo "=== Syncing issues ==="
-UPDATED_JSON=$(cat "${REQUIREMENTS_FILE}")
+declare -A SYNCED_ISSUES
 
 for i in $(seq 0 $((REQ_COUNT - 1))); do
     REQ_ID=$(jq -r ".requirements[${i}].id" "${REQUIREMENTS_FILE}")
     REQ_TEXT=$(jq -r ".requirements[${i}].requirement" "${REQUIREMENTS_FILE}")
     TEST_DESC=$(jq -r ".requirements[${i}].test_description" "${REQUIREMENTS_FILE}")
     TEST_IMPL=$(jq -r ".requirements[${i}].test_implementation" "${REQUIREMENTS_FILE}")
-    ISSUE_NUM=$(jq -r ".requirements[${i}].issue_number" "${REQUIREMENTS_FILE}")
     REQ_LABELS=$(jq -r ".requirements[${i}].labels | join(\",\")" "${REQUIREMENTS_FILE}")
 
     TITLE="[${REQ_ID}] ${REQ_TEXT}"
+    ALL_LABELS="${REQ_LABELS},${REQ_ID}"
 
     BODY="## Requirement
 
@@ -96,13 +126,26 @@ ${TEST_DESC}
 _Managed by [requirements/requirements.json](../requirements/requirements.json) — do not edit manually._
 _Requirement ID: ${REQ_ID}_"
 
-    if [[ "${ISSUE_NUM}" == "null" || -z "${ISSUE_NUM}" ]]; then
+    ISSUE_NUM="${EXISTING_ISSUES[${REQ_ID}]:-}"
+
+    if [[ -n "${ISSUE_NUM}" ]]; then
+        echo "  [${REQ_ID}] Updating issue #${ISSUE_NUM}"
+        if [[ "${DRY_RUN}" == "false" ]]; then
+            gh issue edit "${ISSUE_NUM}" ${REPO_FLAG} \
+                --title "${TITLE}" \
+                --body "${BODY}" \
+                --add-label "${ALL_LABELS}" 2>&1 || echo "    -> WARNING: failed to update issue #${ISSUE_NUM}" >&2
+        else
+            echo "    -> [dry-run] Would update issue #${ISSUE_NUM}"
+        fi
+        SYNCED_ISSUES["${REQ_ID}"]="${ISSUE_NUM}"
+    else
         echo "  [${REQ_ID}] Creating issue: ${TITLE}"
         if [[ "${DRY_RUN}" == "false" ]]; then
             CREATE_OUTPUT=$(gh issue create ${REPO_FLAG} \
                 --title "${TITLE}" \
                 --body "${BODY}" \
-                --label "${REQ_LABELS},status/untested" 2>&1) || {
+                --label "${ALL_LABELS},status/untested" 2>&1) || {
                 echo "    -> ERROR creating issue: ${CREATE_OUTPUT}" >&2
                 continue
             }
@@ -112,32 +155,15 @@ _Requirement ID: ${REQ_ID}_"
                 continue
             fi
             echo "    -> Created issue #${NEW_NUM}"
-            UPDATED_JSON=$(echo "${UPDATED_JSON}" | jq ".requirements[${i}].issue_number = ${NEW_NUM}")
+            SYNCED_ISSUES["${REQ_ID}"]="${NEW_NUM}"
         else
             echo "    -> [dry-run] Would create issue"
-        fi
-    else
-        echo "  [${REQ_ID}] Updating issue #${ISSUE_NUM}: ${TITLE}"
-        if [[ "${DRY_RUN}" == "false" ]]; then
-            gh issue edit "${ISSUE_NUM}" ${REPO_FLAG} \
-                --title "${TITLE}" \
-                --body "${BODY}" \
-                --add-label "${REQ_LABELS}" 2>&1 || echo "    -> WARNING: failed to update issue #${ISSUE_NUM}" >&2
-        else
-            echo "    -> [dry-run] Would update issue #${ISSUE_NUM}"
         fi
     fi
 done
 echo ""
 
-# ── Write updated JSON back (with issue numbers) ────────────────────
-if [[ "${DRY_RUN}" == "false" ]]; then
-    echo "${UPDATED_JSON}" | jq '.' > "${REQUIREMENTS_FILE}"
-    echo "Updated ${REQUIREMENTS_FILE} with issue numbers."
-fi
-
 # ── GitHub Project ───────────────────────────────────────────────────
-echo ""
 echo "=== Syncing GitHub Project ==="
 
 OWNER=$(echo "${GITHUB_REPOSITORY}" | cut -d'/' -f1)
@@ -164,15 +190,11 @@ else
 fi
 
 if [[ -n "${PROJECT_NUM}" && "${DRY_RUN}" == "false" ]]; then
-    UPDATED_JSON=$(cat "${REQUIREMENTS_FILE}")
-    for i in $(seq 0 $((REQ_COUNT - 1))); do
-        ISSUE_NUM=$(echo "${UPDATED_JSON}" | jq -r ".requirements[${i}].issue_number")
-        REQ_ID=$(echo "${UPDATED_JSON}" | jq -r ".requirements[${i}].id")
-        if [[ "${ISSUE_NUM}" != "null" && -n "${ISSUE_NUM}" ]]; then
-            ISSUE_URL="https://github.com/${GITHUB_REPOSITORY}/issues/${ISSUE_NUM}"
-            echo "  Adding issue #${ISSUE_NUM} (${REQ_ID}) to project #${PROJECT_NUM}"
-            gh project item-add "${PROJECT_NUM}" --owner "${OWNER}" --url "${ISSUE_URL}" 2>/dev/null || true
-        fi
+    for REQ_ID in "${!SYNCED_ISSUES[@]}"; do
+        ISSUE_NUM="${SYNCED_ISSUES[${REQ_ID}]}"
+        ISSUE_URL="https://github.com/${GITHUB_REPOSITORY}/issues/${ISSUE_NUM}"
+        echo "  Adding issue #${ISSUE_NUM} (${REQ_ID}) to project #${PROJECT_NUM}"
+        gh project item-add "${PROJECT_NUM}" --owner "${OWNER}" --url "${ISSUE_URL}" 2>/dev/null || true
     done
 fi
 
