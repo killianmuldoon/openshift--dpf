@@ -520,7 +520,7 @@
     },
     {
       "id": "REQ-048",
-      "requirement": "DPUCluster has a documented upgrade process",
+      "requirement": "DPF on OCP has a documented upgrade process - including OCP version and DPF version upgrades",
       "test_description": "",
       "test_implementation": "",
       "labels": [
@@ -605,6 +605,18 @@
         "type/non-functional"
       ],
       "issue_number": null
+    },
+    {
+      "id": "REQ-056",
+      "requirement": "DPF on OCP with HBN / OVN Kubernetes can take stressful network loads",
+      "test_description": "",
+      "test_implementation": "",
+      "labels": [
+        "area/system",
+        "type/non-functional"
+      ],
+      "issue_number": null
     }
+
   ]
 }
