@@ -618,14 +618,6 @@ function apply_dpf() {
 
     patch_provisioning_init_container
 
-    # Deploy DPUCluster CSR auto-approver if enabled
-    if [[ "${AUTO_APPROVE_DPUCLUSTER_CSR}" == "true" ]]; then
-        log "WARN" "[DEPRECATED] AUTO_APPROVE_DPUCLUSTER_CSR is deprecated. DPF HCP Provisioner Operator (v0.1.2+) handles CSR approval automatically."
-        log "WARN" "The standalone CronJob approach is only needed for legacy deployments not using the provisioner operator."
-        log "INFO" "Deploying CSR auto-approver for DPUCluster..."
-        deploy_dpucluster_csr_approver
-    fi
-
     log [INFO] "DPF deployment complete"
 }
 
@@ -634,6 +626,7 @@ function deploy_dpucluster_csr_approver() {
     # NOTE: DPF HCP Provisioner Operator (v0.1.2+) handles CSR approval automatically.
     # This standalone CronJob approach is only needed for legacy deployments.
     # Runs on host cluster, uses HyperShift kubeconfig to approve CSRs on DPUCluster
+    log "INFO" "Deploying CSR auto-approver for DPUCluster..."
     log "INFO" "Deploying CSR auto-approver for DPUCluster..."
 
     get_kubeconfig
