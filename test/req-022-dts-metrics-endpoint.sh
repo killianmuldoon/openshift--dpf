@@ -58,23 +58,44 @@ echo "   Endpoint: ${ENDPOINT_IP}:${PORT}"
 echo ""
 echo "3) Querying /metrics endpoint at ${ENDPOINT_IP}:${PORT}..."
 
-METRICS_OUTPUT=$(curl -s --max-time 10 "http://${ENDPOINT_IP}:${PORT}/metrics" 2>/dev/null || true)
+METRICS_TMP=$(mktemp)
+curl -s --max-time 30 "http://${ENDPOINT_IP}:${PORT}/metrics" > "${METRICS_TMP}" 2>/dev/null || true
 
-if [[ -z "${METRICS_OUTPUT}" ]]; then
+if [[ ! -s "${METRICS_TMP}" ]]; then
     echo "FAIL: /metrics endpoint returned empty response"
+    rm -f "${METRICS_TMP}"
     exit 1
 fi
 
-if echo "${METRICS_OUTPUT}" | grep -qE '^# (HELP|TYPE) '; then
-    METRIC_COUNT=$(echo "${METRICS_OUTPUT}" | grep -c '^# HELP ' || true)
-    echo "   Received Prometheus metrics (${METRIC_COUNT} metric families)"
+LINE_COUNT=$(wc -l < "${METRICS_TMP}" | tr -d ' ')
+echo "   Received ${LINE_COUNT} lines"
+
+EXPECTED_METRICS="rx_packets rx_bytes tx_packets tx_bytes"
+FOUND=0
+MISSING=""
+
+for metric in ${EXPECTED_METRICS}; do
+    if grep -q "TYPE ${metric} " "${METRICS_TMP}"; then
+        FOUND=$((FOUND + 1))
+        echo "   Found: ${metric}"
+    else
+        MISSING="${MISSING} ${metric}"
+    fi
+done
+
+rm -f "${METRICS_TMP}"
+
+if [[ ${FOUND} -eq 0 ]]; then
+    echo "FAIL: none of the expected DTS metrics found (${EXPECTED_METRICS})"
     echo ""
-    echo "   Sample metrics:"
-    echo "${METRICS_OUTPUT}" | grep '^# HELP ' | head -5 | sed 's/^/     /'
-    echo ""
-    echo "PASS: DTS metrics endpoint is serving Prometheus-format metrics"
-else
-    echo "FAIL: /metrics response does not contain Prometheus-format metrics"
-    echo "${METRICS_OUTPUT}" | head -10
+    echo "   First 10 lines of response:"
+    echo "${METRICS_OUTPUT}" | head -10 | sed 's/^/     /'
     exit 1
 fi
+
+if [[ -n "${MISSING}" ]]; then
+    echo "   Missing:${MISSING}"
+fi
+
+echo ""
+echo "PASS: DTS metrics endpoint reports ${FOUND}/$(echo ${EXPECTED_METRICS} | wc -w | tr -d ' ') expected metrics"

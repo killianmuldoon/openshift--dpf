@@ -16,7 +16,7 @@ echo "Checking DTS DPUService installation..."
 echo ""
 echo "1) Looking for DTS DPUService in ${DPF_NAMESPACE}..."
 
-DTS_SERVICES=$(oc get dpuservice -n "${DPF_NAMESPACE}" --no-headers 2>/dev/null | grep -i dts || true)
+DTS_SERVICES=$(oc get dpuservice -n "${DPF_NAMESPACE}" --no-headers 2>/dev/null | grep -i  doca-telemetry-service || true)
 if [[ -z "${DTS_SERVICES}" ]]; then
     echo "FAIL: no DTS DPUService found in namespace ${DPF_NAMESPACE}"
     oc get dpuservice -n "${DPF_NAMESPACE}" 2>/dev/null || true

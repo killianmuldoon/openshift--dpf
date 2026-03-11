@@ -346,6 +346,7 @@ help:
 	@echo "  verify-dpudeployment  - Wait for DPUDeployment to be Ready"
 	@echo "  verify-requirements   - Run requirement tests and produce a report"
 	@echo "                          Use VERIFY_REQ_ARGS to pass options, e.g.:"
+	@echo "                            make verify-requirements VERIFY_REQ_ARGS='--verbose'"
 	@echo "                            make verify-requirements VERIFY_REQ_ARGS='REQ-001 REQ-049'"
 	@echo "                            make verify-requirements VERIFY_REQ_ARGS='--output report.md'"
 	@echo "                            make verify-requirements VERIFY_REQ_ARGS='--json'"

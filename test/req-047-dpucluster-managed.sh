@@ -3,7 +3,7 @@
 # REQ-047: DPUCluster does not require direct interaction with HyperShift by the user
 #
 # Verifies the HostedCluster is managed by DPF (not created manually) by
-# checking that its managedFields include hypershift-controlplane-manager.
+# checking that its managedFields include hypershift-operator-manager.
 
 set -eo pipefail
 
@@ -40,13 +40,13 @@ MANAGERS=$(oc get hostedcluster -n "${HC_NS}" "${HC_NAME}" \
 
 echo "   Managers found: ${MANAGERS}"
 
-if echo "${MANAGERS}" | grep -q "hypershift-controlplane-manager"; then
+if echo "${MANAGERS}" | grep -q "hypershift-operator-manager"; then
     echo ""
-    echo "PASS: HostedCluster '${HC_NAME}' is managed by hypershift-controlplane-manager"
+    echo "PASS: HostedCluster '${HC_NAME}' is managed by hypershift-operator-manager"
     exit 0
 fi
 
 echo ""
-echo "FAIL: hypershift-controlplane-manager not found in managedFields"
+echo "FAIL: hypershift-operator-manager not found in managedFields"
 echo "   This suggests the HostedCluster may have been created manually"
 exit 1

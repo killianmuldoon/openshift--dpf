@@ -54,8 +54,8 @@
       "id": "REQ-005",
       "requirement": "DPF 26.4.X runs in DPF host-trusted mode",
       "description": "",
-      "test_description": "",
-      "test_implementation": "",
+      "test_description": "Verify all DPU objects have dpuInstallInterface set to hostAgent",
+      "test_implementation": "test/req-005-host-trusted-mode.sh",
       "labels": [
         "area/installation",
         "type/functional"
@@ -558,7 +558,7 @@
       "id": "REQ-047",
       "requirement": "DPUCluster does not require direct interaction with HyperShift by the user",
       "description": "",
-      "test_description": "Verify the HostedCluster managedFields include hypershift-controlplane-manager, confirming DPF manages it",
+      "test_description": "Verify the HostedCluster managedFields include hypershift-operator-manager, confirming DPF manages it",
       "test_implementation": "test/req-047-dpucluster-managed.sh",
       "labels": [
         "area/dpucluster",

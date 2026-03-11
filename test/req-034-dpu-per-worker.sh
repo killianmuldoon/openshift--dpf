@@ -41,7 +41,7 @@ echo "   Found ${DPU_COUNT} DPU object(s)"
 echo ""
 echo "3) Verifying each DPU-enabled node has a managed DPU..."
 
-DPU_NODE_NAMES=$(oc get dpu -n "${DPF_NAMESPACE}" -o jsonpath='{range .items[*]}{.spec.nodeEffect.nodeName}{"\n"}{end}' 2>/dev/null | sort -u)
+DPU_NODE_NAMES=$(oc get dpu -n "${DPF_NAMESPACE}" -o jsonpath='{range .items[*]}{.spec.dpuNodeName}{"\n"}{end}' 2>/dev/null | sort -u)
 
 MISSING=0
 while IFS= read -r node; do
