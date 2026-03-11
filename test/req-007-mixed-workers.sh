@@ -19,12 +19,12 @@ if [[ "${WORKER_COUNT}" -eq 0 ]]; then
     exit 1
 fi
 
-if ! oc get crd dpus.svc.dpu.dev &>/dev/null; then
+if ! oc get crd dpus.provisioning.dpu.nvidia.com &>/dev/null; then
     echo "FAIL: DPU CRD not found — cannot determine DPU-equipped nodes"
     exit 1
 fi
 
-DPU_HOSTS=$(oc get dpus.svc.dpu.dev -A -o jsonpath='{.items[*].spec.nodeEffect.nodeName}' 2>/dev/null | tr ' ' '\n' | sort -u)
+DPU_HOSTS=$(oc get dpus.provisioning.dpu.nvidia.com -A -o jsonpath='{.items[*].spec.nodeEffect.nodeName}' 2>/dev/null | tr ' ' '\n' | sort -u)
 DPU_HOST_COUNT=$(echo "${DPU_HOSTS}" | grep -c . || true)
 
 NON_DPU_COUNT=$((WORKER_COUNT - DPU_HOST_COUNT))

@@ -18,8 +18,8 @@
       "id": "REQ-002",
       "requirement": "DPF 26.4.X can be installed successfully on OCP 4.22.X",
       "description": "",
-      "test_description": "",
-      "test_implementation": "",
+      "test_description": "Verify DPFOperatorConfig status version matches 26.4, OCP cluster version matches 4.22, and DPFOperatorConfig is Ready",
+      "test_implementation": "test/req-002-install-success.sh",
       "labels": [
         "area/installation",
         "type/functional"
