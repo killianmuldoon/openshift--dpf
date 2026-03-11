@@ -106,10 +106,16 @@ for i in $(seq 0 $((REQ_COUNT - 1))); do
         continue
     fi
 
+    echo ""
+    echo "--------------------------------------------------------------------------------"
+    printf "  [%s] %s\n" "${REQ_ID}" "${REQ_TEXT}"
+    printf "  Command: %s\n" "${TEST_IMPL}"
+    echo "--------------------------------------------------------------------------------"
+
     OUTPUT_TMP=$(mktemp)
     set +e
-    (cd "${REPO_ROOT}" && eval "${TEST_IMPL}") > "${OUTPUT_TMP}" 2>&1
-    EXIT_CODE=$?
+    (cd "${REPO_ROOT}" && eval "${TEST_IMPL}") 2>&1 | tee "${OUTPUT_TMP}"
+    EXIT_CODE=${PIPESTATUS[0]}
     set -e
 
     LAST_LINES=$(tail -5 "${OUTPUT_TMP}" | tr '\n' ' ')
@@ -119,12 +125,12 @@ for i in $(seq 0 $((REQ_COUNT - 1))); do
         RESULT_STATUSES+=("PASS")
         RESULT_DETAILS+=("${LAST_LINES}")
         PASS_COUNT=$((PASS_COUNT + 1))
-        printf "  %-10s \033[32m%-6s\033[0m %s\n" "${REQ_ID}" "PASS" "${REQ_TEXT}"
+        printf "\n  %-10s \033[32m%-6s\033[0m %s\n" "${REQ_ID}" "PASS" "${REQ_TEXT}"
     else
         RESULT_STATUSES+=("FAIL")
         RESULT_DETAILS+=("Exit code ${EXIT_CODE}: ${LAST_LINES}")
         FAIL_COUNT=$((FAIL_COUNT + 1))
-        printf "  %-10s \033[31m%-6s\033[0m %s\n" "${REQ_ID}" "FAIL" "${REQ_TEXT}"
+        printf "\n  %-10s \033[31m%-6s\033[0m %s\n" "${REQ_ID}" "FAIL" "${REQ_TEXT}"
     fi
 done
 

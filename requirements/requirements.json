@@ -102,8 +102,8 @@
       "id": "REQ-009",
       "requirement": "A DPUDeployment can provision DPUs",
       "description": "",
-      "test_description": "",
-      "test_implementation": "",
+      "test_description": "Verify DPU objects exist in dpf-operator-system and at least one is in Ready state",
+      "test_implementation": "test/req-009-dpu-provisioned.sh",
       "labels": [
         "area/dpudeployment",
         "type/functional"
