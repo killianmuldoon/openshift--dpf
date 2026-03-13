@@ -213,6 +213,8 @@ function deploy_dpf_hcp_provisioner_operator() {
         return 1
     fi
 
+    ## Workaround to be removed. The provisioning controller expects a configmap to be created meaning there is a deadlock.
+    oc create configmap custom-bfb.cfg -n dpf-operator-system --from-literal=BF_CFG_TEMPLATE="# placeholder bf.cfg template"
     log [INFO] "Waiting for DPF HCP Provisioner Operator to be ready..."
     wait_for_pods "${DPF_HCP_PROVISIONER_OPERATOR_NAMESPACE}" "app.kubernetes.io/name=dpf-hcp-provisioner-operator" 60 10
 
