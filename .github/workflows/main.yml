@@ -23,10 +23,10 @@ on:
       ref:
         description: "Git ref to build (branch, tag, or commit SHA)"
         required: false
-        default: "public-main"
+        default: "public-release-v26.4"
         type: string
       tag:
-        description: "Version tag for images and charts (e.g. 25.4.0-abc1234). Defaults to 25.4.0-<short-sha>."
+        description: "Version tag for images and charts (e.g. 26.4.0-abc1234). Defaults to 26.4.0-<short-sha>."
         required: false
         default: ""
         type: string
@@ -63,7 +63,7 @@ jobs:
         run: |
           git clone "${{ env.SOURCE_REPO }}" "$GITHUB_WORKSPACE/source"
           cd "$GITHUB_WORKSPACE/source"
-          git checkout "${{ inputs.ref || 'public-main' }}"
+          git checkout "${{ inputs.ref || 'public-release-v26.4' }}"
         working-directory: ${{ github.workspace }}
 
       - name: Resolve tag
@@ -79,7 +79,7 @@ jobs:
       - name: Verify checkout
         run: |
           echo "Repository : ${{ env.SOURCE_REPO }}"
-          echo "Ref        : ${{ inputs.ref || 'public-main' }}"
+          echo "Ref        : ${{ inputs.ref || 'public-release-v26.4' }}"
           echo "Tag        : ${{ env.TAG }}"
           echo "Commit     : $(git rev-parse HEAD)"
 
@@ -143,7 +143,7 @@ jobs:
         run: |
           DRY="${{ inputs.dry_run }}"
           echo "## Release ${{ env.TAG }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Source: \`${{ env.SOURCE_REPO }}\` @ \`${{ inputs.ref || 'public-main' }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source: \`${{ env.SOURCE_REPO }}\` @ \`${{ inputs.ref || 'public-release-v26.4' }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Commit: \`$(git rev-parse HEAD)\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [[ "$DRY" == "true" ]]; then
