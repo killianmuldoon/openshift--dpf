@@ -52,6 +52,7 @@ jobs:
     timeout-minutes: 120
     env:
       UPSTREAM_REGISTRY: ghcr.io/killianmuldoon/doca-platform
+      PACKAGE_SOURCES: "false"
     defaults:
       run:
         working-directory: source
