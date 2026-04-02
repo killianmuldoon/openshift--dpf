@@ -1,0 +1,38 @@
+apiVersion: admissionregistration.k8s.io/v1alpha1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: mutate-in-cluster-pod-security
+spec:
+  failurePolicy: Fail
+  reinvocationPolicy: Never
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["CREATE"]
+      resources: ["pods"]
+  matchConditions:
+  - name: is-target-pod
+    expression: >-
+      object.metadata.namespace == "dpf-operator-system" &&
+      has(object.metadata.generateName) &&
+      (object.metadata.generateName.startsWith("in-cluster-kube-state-metrics-") ||
+       object.metadata.generateName.startsWith("in-cluster-nvidia-k8s-ipam-") ||
+       object.metadata.generateName.startsWith("in-cluster-servicechainset-controller-"))
+  mutations:
+  - patchType: JSONPatch
+    jsonPatch:
+      expression: >-
+        (has(object.spec.securityContext) && has(object.spec.securityContext.runAsUser) ?
+          [JSONPatch{op: "remove", path: "/spec/securityContext/runAsUser"}] : [])
+        + (has(object.spec.securityContext) && has(object.spec.securityContext.fsGroup) ?
+          [JSONPatch{op: "remove", path: "/spec/securityContext/fsGroup"}] : [])
+        + (has(object.spec.containers[0].securityContext) && has(object.spec.containers[0].securityContext.runAsUser) ?
+          [JSONPatch{op: "remove", path: "/spec/containers/0/securityContext/runAsUser"}] : [])
+---
+apiVersion: admissionregistration.k8s.io/v1alpha1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: mutate-in-cluster-pod-security-binding
+spec:
+  policyName: mutate-in-cluster-pod-security
