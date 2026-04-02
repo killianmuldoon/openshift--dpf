@@ -72,9 +72,6 @@ else
   exit 1
 fi
 
-echo -e "\nContents of hosted cluster kubeconfig file '${hosted_kubecfg}':"
-cat "${hosted_kubecfg}"
-
 echo -e "\nOutput of oc get nodes --kubeconfig='${mgmt_kubecfg}':"
 oc get nodes --kubeconfig="${mgmt_kubecfg}"
 

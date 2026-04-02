@@ -341,7 +341,12 @@ update_file_multi_replace() {
     while [ $i -lt ${#pairs[@]} ]; do
         local placeholder="${pairs[$i]}"
         local value="${pairs[$((i+1))]}"
-        log [INFO] "Replacing ${placeholder} with ${value} in ${target_file}"
+	# check for api keys or secrets e.g. NGC_API_KEY or PULL_SECRET_BASE64, and ensure we don't output their values in log files
+	if [[ "${placeholder^^}" == *API_KEY* || "${placeholder^^}" == *SECRET* ]]; then
+            log [INFO] "Replacing ${placeholder} with [REDACTED] in ${target_file}"
+        else
+            log [INFO] "Replacing ${placeholder} with ${value} in ${target_file}"
+        fi
 
         # Use bash parameter expansion for replacement (handles multi-line naturally)
         content="${content//${placeholder}/${value}}"
