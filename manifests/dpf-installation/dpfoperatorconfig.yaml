@@ -29,9 +29,6 @@ spec:
     enableDynamicBFCFGTemplates: true
     hostAgentDNSPolicy: Default
     dmsTimeout: 900
-    registry:
-      port: 8086
-      address: <BFB_REGISTRY_ADDRESS>
   nodeSRIOVDevicePluginController:
     devicePlugin:
       defaultResourcePrefix: <SRIOV_DP_RESOURCE_PREFIX>
