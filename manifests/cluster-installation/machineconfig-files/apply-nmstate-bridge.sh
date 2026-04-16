@@ -107,6 +107,9 @@ apply_linux_bridge() {
     if nmstatectl apply /tmp/br-dpu-config.yml; then
         echo "SUCCESS: Bridge $bridge created successfully."
         ip addr show "$bridge"
+
+        echo "INFO: Setting rp_filter=2 (loose mode) on $bridge"
+        sysctl -w "net.ipv4.conf.${bridge}.rp_filter=2"
     else
         echo "ERROR: Failed to apply NMState configuration." >&2
         rm -f /tmp/br-dpu-config.yml
