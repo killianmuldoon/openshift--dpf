@@ -19,3 +19,6 @@ spec:
         prometheus:
           port: 9189
       hostVolumePrefix: "/var/lib"
+      imageDTS: <DTS_IMAGE>
+      imagePullSecrets:
+        - name: dpf-pull-secret

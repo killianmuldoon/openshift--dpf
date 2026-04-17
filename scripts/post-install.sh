@@ -196,8 +196,9 @@ function update_service_templates() {
                     "${POST_INSTALL_DIR}/${template}" \
                     "${GENERATED_POST_INSTALL_DIR}/${template}" \
                     "<DTS_HELM_REPO_URL>" "${DTS_HELM_REPO_URL}" \
-                    "<DTS_HELM_CHART_VERSION>" "${DTS_HELM_CHART_VERSION}"
-                log [INFO] "Updated ${template} with DTS helm configuration"
+                    "<DTS_HELM_CHART_VERSION>" "${DTS_HELM_CHART_VERSION}" \
+                    "<DTS_IMAGE>" "${DTS_IMAGE}"
+                log [INFO] "Updated ${template} with DTS helm and image configuration"
             else
                 update_file_multi_replace \
                     "${POST_INSTALL_DIR}/${template}" \
