@@ -1,5 +1,5 @@
 #!/bin/bash
-# enable-ovn-injector.sh - Enable OVN resource injector via MutatingAdmissionPolicy
+# enable-ovn-injector.sh - Enable OVN resource injector
 
 # Exit on error
 set -e
