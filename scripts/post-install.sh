@@ -15,6 +15,7 @@ MANIFESTS_DIR=${MANIFESTS_DIR:-"manifests"}
 POST_INSTALL_DIR="${MANIFESTS_DIR}/post-installation"
 GENERATED_DIR=${GENERATED_DIR:-"$MANIFESTS_DIR/generated"}
 GENERATED_POST_INSTALL_DIR="${GENERATED_DIR}/post-install"
+OBSERVABILITY_DIR="${MANIFESTS_DIR}/observability"
 
 # BFB Configuration with defaults
 BFB_URL=${BFB_URL:-"http://10.8.2.236/bfb/rhcos_4.19.0-ec.4_installer_2025-04-23_07-48-42.bfb"}
@@ -359,6 +360,54 @@ function apply_post_installation() {
     log [INFO] "Post-installation manifest application completed successfully"
 }
 
+function apply_observability() {
+    log [INFO] "Starting observability manifest application..."
+
+    if [ ! -d "${OBSERVABILITY_DIR}" ]; then
+        log [ERROR] "Observability directory not found: ${OBSERVABILITY_DIR}"
+        exit 1
+    fi
+
+    get_kubeconfig
+
+    log [INFO] "Applying observability operator subscriptions..."
+    retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/operators" "true"
+
+    log [INFO] "Waiting for Grafana Operator CSV to reach Succeeded..."
+    local attempts=0
+    local phase=""
+    while [ $attempts -lt 60 ]; do
+        phase=$(oc -n openshift-operators get csv \
+            -l operators.coreos.com/grafana-operator.openshift-operators= \
+            -o jsonpath='{.items[0].status.phase}' 2>/dev/null || true)
+        if [ "$phase" = "Succeeded" ]; then
+            break
+        fi
+        attempts=$((attempts+1))
+        sleep 10
+    done
+    if [ "$phase" != "Succeeded" ]; then
+        log [ERROR] "Grafana Operator CSV did not reach Succeeded after 10 minutes (last phase: '${phase}')"
+        return 1
+    fi
+    log [INFO] "Grafana Operator CSV is Succeeded"
+
+    log [INFO] "Applying DPF metrics manifests..."
+    retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/dpf-metrics" "true"
+
+    # Works around a UWM prometheus-operator namespace-cache race where newly
+    # applied PodMonitors in dpf-operator-system aren't rendered into the
+    # Prometheus scrape config until the operator is kicked. See WA-005.
+    log [INFO] "Restarting UWM prometheus-operator to refresh PodMonitor cache..."
+    oc -n openshift-user-workload-monitoring rollout restart deploy/prometheus-operator || true
+    oc -n openshift-user-workload-monitoring rollout status deploy/prometheus-operator --timeout=120s || true
+
+    log [INFO] "Applying Grafana manifests..."
+    retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/grafana" "true"
+
+    log [INFO] "Observability manifest application completed successfully"
+}
+
 function redeploy() {
     log [INFO] "Redeploying DPU..."
     prepare_post_installation
@@ -382,10 +431,10 @@ function redeploy() {
 # If script is executed directly (not sourced), run the appropriate function
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     if [ $# -lt 1 ]; then
-        log [ERROR] "Usage: $0 <prepare|apply|redeploy>"
+        log [ERROR] "Usage: $0 <prepare|apply|redeploy|observability>"
         exit 1
     fi
-    
+
     case "$1" in
         prepare)
             prepare_post_installation
@@ -396,9 +445,12 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         redeploy)
             redeploy
             ;;
+        observability)
+            apply_observability
+            ;;
         *)
             log [ERROR] "Unknown command: $1"
-            log [ERROR] "Available commands: prepare, apply, redeploy"
+            log [ERROR] "Available commands: prepare, apply, redeploy, observability"
             exit 1
             ;;
     esac
