@@ -405,6 +405,81 @@ function apply_observability() {
     log [INFO] "Applying Grafana manifests..."
     retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/grafana" "true"
 
+    log [INFO] "Applying Loki deployment and Cluster Logging Operator subscription..."
+    retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/logging/cluster-logging-subscription.yaml" "true"
+    retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/logging/loki.yaml" "true"
+
+    log [INFO] "Waiting for Cluster Logging Operator CSV to reach Succeeded..."
+    attempts=0
+    phase=""
+    while [ $attempts -lt 60 ]; do
+        phase=$(oc -n openshift-logging get csv \
+            -l operators.coreos.com/cluster-logging.openshift-logging= \
+            -o jsonpath='{.items[0].status.phase}' 2>/dev/null || true)
+        if [ "$phase" = "Succeeded" ]; then
+            break
+        fi
+        attempts=$((attempts+1))
+        sleep 10
+    done
+    if [ "$phase" != "Succeeded" ]; then
+        log [ERROR] "Cluster Logging Operator CSV did not reach Succeeded after 10 minutes (last phase: '${phase}')"
+        return 1
+    fi
+    log [INFO] "Cluster Logging Operator CSV is Succeeded"
+
+    log [INFO] "Applying ClusterLogForwarder and Loki datasource..."
+    retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/logging/clusterlogforwarder.yaml" "true"
+    retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/logging/grafana-loki-datasource.yaml" "true"
+
+    log [INFO] "Applying OpenTelemetry Operator subscription..."
+    retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/logging/opentelemetry-operator-subscription.yaml" "true"
+
+    log [INFO] "Waiting for OpenTelemetry Operator CSV to reach Succeeded..."
+    attempts=0
+    phase=""
+    while [ $attempts -lt 60 ]; do
+        phase=$(oc -n openshift-opentelemetry-operator get csv \
+            -l operators.coreos.com/opentelemetry-product.openshift-opentelemetry-operator= \
+            -o jsonpath='{.items[0].status.phase}' 2>/dev/null || true)
+        if [ "$phase" = "Succeeded" ]; then
+            break
+        fi
+        attempts=$((attempts+1))
+        sleep 10
+    done
+    if [ "$phase" != "Succeeded" ]; then
+        log [ERROR] "OpenTelemetry Operator CSV did not reach Succeeded after 10 minutes (last phase: '${phase}')"
+        return 1
+    fi
+    log [INFO] "OpenTelemetry Operator CSV is Succeeded"
+
+    log [INFO] "Applying host OpenTelemetryCollector..."
+    retry 5 30 apply_manifest "${OBSERVABILITY_DIR}/logging/otel-collector.yaml" "true"
+
+    log [INFO] "Resolving a host-cluster control-plane node IP for the DPU OTel endpoint..."
+    local host_node_ip=""
+    host_node_ip=$(oc get nodes -l node-role.kubernetes.io/control-plane \
+        -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null || true)
+    if [ -z "$host_node_ip" ]; then
+        log [ERROR] "No host-cluster control-plane node found; skipping DPU OTel endpoint patch"
+        return 1
+    fi
+    log [INFO] "Using host control-plane IP ${host_node_ip} for DPU OTel endpoint (NodePort 30318)"
+
+    log [INFO] "Patching DPFOperatorConfig to enable DPU-side OpenTelemetry forwarding..."
+    oc -n dpf-operator-system patch dpfoperatorconfig dpfoperatorconfig --type=merge -p "{
+      \"spec\": {
+        \"monitoring\": {
+          \"openTelemetryCollector\": {
+            \"logging\": {
+              \"endpoint\": \"http://${host_node_ip}:30318\"
+            }
+          }
+        }
+      }
+    }" || log [WARN] "DPFOperatorConfig patch failed; DPU-side OTel will not be enabled"
+
     log [INFO] "Observability manifest application completed successfully"
 }
 
