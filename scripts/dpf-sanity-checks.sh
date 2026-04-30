@@ -52,8 +52,22 @@ echo -e "\n- mgmt_kubecfg: '${mgmt_kubecfg}'"
 
 # Get the hosted cluster kubeconfig
 hosted_namespace=$(oc get hostedclusters -A --no-headers --kubeconfig=${mgmt_kubecfg} | awk '{print $1}')
-hosted_kubeconfig_name=$(oc get hostedclusters -A --no-headers --kubeconfig=${mgmt_kubecfg} | awk '{print $4}')
+echo -e "\nExtracted hosted_namespace is: '${hosted_namespace}'"
+
+# 2026-04-30:  output of command changed as they added an extra field CP VERSION
+# $ oc get hostedclusters -A --kubeconfig=${mgmt_kubecfg}
+# NAMESPACE   NAME   VERSION       CP VERSION    KUBECONFIG              PROGRESS    AVAILABLE   PROGRESSING   MESSAGE
+# clusters    doca   4.22.0-rc.1   4.22.0-rc.1   doca-admin-kubeconfig   Completed   True        False         The hosted control plane is available
+#
+# $ oc get hostedclusters -A --no-headers --kubeconfig=${mgmt_kubecfg}
+# clusters   doca   4.22.0-rc.1   4.22.0-rc.1   doca-admin-kubeconfig   Completed   True   False   The hosted control plane is available
+# 
+# hosted_kubeconfig_name=$(oc get hostedclusters -A --no-headers --kubeconfig=${mgmt_kubecfg} | awk '{print $4}')
+hosted_kubeconfig_name=$(oc get hostedclusters -A --no-headers --kubeconfig=${mgmt_kubecfg} | awk '{print $5}')
+echo -e "\nExtracted hosted_kubeconfig_name is: '${hosted_kubeconfig_name}'"
+
 datetime_string=$(date +"%Y-%m-%d_%H-%M-%S")
+echo -e "\nTimestamp prefix used in this script: '${datetime_string}'"
 
 echo "Currrent working directory: $PWD"
 
