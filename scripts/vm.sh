@@ -55,7 +55,7 @@ _delete_vms_by_prefix() {
     vms=$(virsh list --all | awk '{print $2}' | grep "^${prefix}" || true)
     for vm in ${vms}; do
         virsh destroy "${vm}" 2>/dev/null || true
-        virsh undefine "${vm}" --remove-all-storage 2>/dev/null || true
+        virsh undefine "${vm}" --nvram --remove-all-storage 2>/dev/null || true
     done
     log "INFO" "VMs matching prefix ${prefix} deleted"
 }
