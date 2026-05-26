@@ -17,6 +17,7 @@ openshift_pull.json
 
 # Generated files
 manifests/generated/
+dist/
 kubeconfig*
 
 # Temporary files
